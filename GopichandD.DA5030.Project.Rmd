@@ -1,0 +1,573 @@
+---
+title: "Signature Project"
+author: "Dushyanth Gopichand"
+date: "12/09/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+**~Hepatitis-C Prediction~**
+
+
+**~This Project is a developed in R Notebook. The Project includes a dataset (HCV Data Set) obtained from https://archive.ics.uci.edu/ml/datasets/HCV+data. The data set contains laboratory values of blood donors from healthy and Hepatitis-C postive patients. The target variable is multi classifier which indicates if the patient is healthy, suspicious or Hepatitis-C positive. The data was downloaded as .csv file directly from the URL into the R environment. In the dataset the column "category" is the target variable with 0: being a health person and 1 being a person with Hepatitis-C.~**
+
+
+**~The Goal of this project is to develop 3 Machine Learning classification algorithm which can predict of the blood donor has Hepatitis-C or not.~**
+
+
+```{r}
+#install.packages("funModeling")
+#install.packages("corrplot")
+#install.packages("psych")
+#install.packages("rpact")
+#install.packages("rpart.plot")
+#install.packages("neuralnet")
+#install.packages("kernlab")
+#install.packages("arules")
+#install.packages("tictoc")
+library(psych)
+library(corrplot)
+library(tidyverse)
+library(funModeling)
+library(e1071)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(neuralnet)
+library(kernlab)
+library(arules)
+library(tictoc)
+library(dplyr)
+```
+
+
+**~Data Acquisition~**
+#Understanding the dataset
+
+
+```{r}
+#"funModeling" is a package that can be used in the process of data understanding.
+# load the dataset
+hcv_data <- read.csv("/Users/dushyanthgopichand/Documents/NEU form mac/DA 5030/project/hcvdata.csv")
+
+# explore the dataset
+str(hcv_data)
+View(hcv_data)
+
+# explore the catagorical featuire of the dataset
+freq(hcv_data)
+
+# omit the first column
+hcv_data2 <- hcv_data[2:14]
+str(hcv_data2)
+
+# analysis the numeric data
+plot_num(hcv_data2)
+
+# to understand the distrubituon of the data, we can use profiling 
+profiling_num(hcv_data2)
+```
+
+
+**~Interpretation~**
+
+The dataset contains a total of 615 samples. In that 533 samples are from healthy patients, 7 sample are from suspicious patients who may or may not have Hepatitis-C, 24 samples with Hepatitis, 21 samples of Fibrosis and lastly 30 samples of Cirrhosis.
+
+'funModelling' package allows different functions that can help in understanding the so that, correct implementations of the algorithms can happen.
+
+'freq' is a function that allows to statistically analyze the categorical variable present in the dataset. It automatically picks out the categorical variable and performs it's course of action.
+
+Quantative analysis: we can see that age,CHE, CHOL,PRO are spread well. They have a normal distribution.
+
+Source: https://blog.datascienceheroes.com/exploratory-data-analysis-data-preparation-with-funmodeling/
+
+
+**~Data Exploration~**
+
+
+```{r}
+
+# histogram of distrubtion 
+hist(hcv_data2$Age,  xlab = "Age", main = "Histogram of Age")
+hist(hcv_data2$ALB, xlab = "Albumin", main = "Histogram of Albumin")
+hist(hcv_data2$ALP, xlab = "Alkaline Phosphatase", main = "Histogram of Alkaline Phosphatase")
+hist(hcv_data2$ALT, xlab = "Alanine transaminase", main = "Alanine transaminase")
+hist(hcv_data2$AST, xlab = "Aspartate Aminotransferase", main = "Histogram of Aspartate Aminotransferase")
+hist(hcv_data2$BIL, xlab = "Bilirubin", main = "Histogram of Bilirubin")
+hist(hcv_data2$CHE, xlab = "Serum holinesterase", main = "Histogram of Serum holinesterase")
+hist(hcv_data2$CHOL, xlab = "Cholesterol", main = "Histogram of Cholesterol")
+hist(hcv_data2$CREA, xlab = "Creatinine", main = "Histogram of Cilirubin")
+hist(hcv_data2$GGT, xlab = "Gamma-Glutamyl Transferase", main = "Gamma-Glutamyl Transferase")
+hist(hcv_data2$PROT, xlab = "Protein", main = "Histogram of Protein")
+
+# outliers dectection 
+
+boxplot(hcv_data2$Age, ylab = "Age", main = "Histogram of Age")
+boxplot(hcv_data2$ALB, ylab = "Albumin", main = "Histogram of Albumin")
+boxplot(hcv_data2$ALP, ylab = "Alkaline Phosphatase", main = "Histogram of Alkaline Phosphatase")
+boxplot(hcv_data2$ALT, ylab = "Alanine transaminase", main = "Alanine transaminase")
+boxplot(hcv_data2$AST, ylab = "Aspartate Aminotransferase", main = "Histogram of Aspartate Aminotransferase")
+boxplot(hcv_data2$BIL, ylab = "Bilirubin", main = "Histogram of Bilirubin")
+boxplot(hcv_data2$CHE, ylab = "Serum holinesterase", main = "Histogram of Serum holinesterase")
+boxplot(hcv_data2$CHOL, ylab = "Cholesterol", main = "Histogram of Cholesterol")
+boxplot(hcv_data2$CREA, ylab = "Creatinine", main = "Histogram of Cilirubin")
+boxplot(hcv_data2$GGT, ylab = "Gamma-Glutamyl Transferase", main = "Gamma-Glutamyl Transferase")
+boxplot(hcv_data2$PROT, ylab = "Protein", main = "Histogram of Protein")
+
+# dectect missing values
+summary(is.na(hcv_data2))
+
+# make a copy of dataframe
+hcv_data3 <- hcv_data2
+
+# mean imputation of missing vales
+for (var in 1:ncol(hcv_data3)) 
+  {
+    if (class(hcv_data3[,var]) %in% c("numeric","integer")) 
+      {
+        hcv_data3[is.na(hcv_data3[,var]), var] <- mean(hcv_data3[,var], na.rm = TRUE)
+    }
+}
+
+# check if imputation worked or not
+summary(is.na(hcv_data3))
+```
+
+
+**~Interpretation~**
+
+
+Not all the features in the dataset in normal distribution. Only age, CHE, CHOL,PRO are normally distribution.
+There are a few missing values in the dataset mainly in column ALP and CHOL, upto 18 and 10 missing values respectively. Other columns has only one missing values. Only numeric data has missing values. Since missing values are few I have decided to impute the numeric missing values with mean of that column. Imputing missing values can build robust models. There are few outliers in the dataset too, I have decide to ignore outlines as it can damage the models, since some of these outliers points to unhealthy patients.
+
+
+```{r}
+# Feature selection 
+# select the numeric feature for correlation 
+cor_hcv <- cor(hcv_data3[c(4:13)])
+cor_hcv
+
+# Visual representation of correlation
+corrplot(cor_hcv)
+
+# selecting important features
+hcv_data_final <- hcv_data3[,c(1, 2, 3, 4, 5, 7, 9, 10, 12, 13)]
+
+# histogram of selected features
+hist(hcv_data_final$ALB, xlab = "Albumin", main = "Histogram of Albumin")
+hist(hcv_data_final$ALP, xlab = "Alkaline Phosphatase", main = "Histogram of Alkaline Phosphatase")
+hist(hcv_data_final$AST, xlab = "Aspartate Aminotransferase", main = "Histogram of Aspartate Aminotransferase")
+hist(hcv_data_final$CHE, xlab = "Serum holinesterase", main = "Histogram of Serum cholinesterase")
+hist(hcv_data_final$CHOL, xlab = "Cholesterol", main = "Histogram of Cholesterol")
+hist(hcv_data_final$GGT, xlab = "Gamma-Glutamyl Transferase", main = "Histogram of Gamma-Glutamyl Transferase")
+hist(hcv_data_final$PROT, xlab = "Protein", main = "Histogram of Protein")
+
+# normalization on features
+hcv_scale <- hcv_data_final[,c(2, c(4:10))]
+data_scaled <- as.data.frame(scale(hcv_scale))
+
+# selected feature computation
+hcv_ca <- prcomp(data_scaled)
+summary(hcv_ca)
+
+# adding the first three colums to the scaled dataset
+hcv_data_final1 <- data_scaled
+hcv_data_final1$Sex <- hcv_data3$Sex
+hcv_data_final1$Category <- hcv_data3$Category
+
+# feature Engineering
+# create a new column based on category
+hcv_data_final1$is_patient <- hcv_data_final1$Category 
+hcv_data_final1$is_patient [hcv_data_final1$is_patient == "0=Blood Donor"] <- "0"
+hcv_data_final1$is_patient [hcv_data_final1$is_patient == "0s=suspect Blood Donor" | 
+                          hcv_data_final1$is_patient == "1=Hepatitis" | 
+                          hcv_data_final1$is_patient == "2=Fibrosis" | 
+                          hcv_data_final1$is_patient == "3=Cirrhosis"] <- "1"
+
+# select the required colums for analysis
+hcv_data_final2 <- hcv_data_final1[c(1, 2, 3, 4, 5, 6, 7, 8, 9, 11)]
+
+# dummy coding 
+hcv_data_final2$Sex_m <- ifelse(hcv_data_final2$Sex == 'm', 1, 0)
+hcv_data_final2$sex_f <- ifelse(hcv_data_final2$Sex == 'f', 1, 0)
+
+# dataset for model
+hcv_data_model <- hcv_data_final2[c(c(1:8), 10, 11)]
+```
+
+
+#Result of correlation matrix and plot:
+
+Accoring to correlation matrix above, there is strong correlation between PROT (protein) and ALB (Albumin), furthermore we can see that CHE (serum cholinesterase) also has a correlation with ALB. We know that low levels of ALB is a sign of liver disease. 
+
+GGT (gamma-glutamyl transferase) has a strong correlation with ALP (gamma-glutamyl transferase) ans GGT also has a strong correlation with AST (aspartate aminotransferase). High levels of AST in the blood is a sign of liver disease. 
+
+The relatuionship between CHE (serum cholinesterase) and CHOL (cholesterol) is also very string, both them play a vital role in predictijg liver disease. 
+
+After studying the correlation between variables, we can say that, Albumin, Gamma-Glutamyl Transferase, Serum Cholinesterase, Aspartate Aminotransferase and Protein presend in the blood sample are leading factors to detect liver disease.
+
+
+**~Interpretation~**
+
+Bassed on the correleation plot I have selected the required feature for my model. I have implemented feature engineeing based on the target variable. Since the target has 5 categories, healthy, suspected, hepatitis, fibrosis, cirrhosis. I decided to change the target into a binary classifier. I made two groups healthy and liver disease. I encoded healthy patients with 0 and liver disease patients as 1.
+
+
+**~Modeling~**
+1. Split the data into training, testing and validation
+2. Naive Bayes, SVM algorithm, Decision tree algorithms are implemented - these are the best models used for numeric variables.
+3. Model evaluation, accuracy, RMSE and adjustedR
+
+```{r}
+set.seed(1000)
+# splitting the dataset into, 70% training, 30% testing 
+# bootstrap resampling with holdout method
+
+hcv_sample <- sample(nrow(hcv_data_model), 0.70 * nrow(hcv_data_model), replace = TRUE) 
+hcv_train <- hcv_data_model[hcv_sample,]
+hcv_test <- hcv_data_model[-hcv_sample,]
+```
+
+
+**~Model 1 - Naive Bayes Algorithm~**
+
+
+```{r}
+set.seed(1000)
+
+# Factorizing the dataset
+nb_train <- as.data.frame(lapply(hcv_train, factor))
+nb_test <- as.data.frame(lapply(hcv_test, factor))
+
+# Naive Bayes classifier using e1071
+naive_model <- naiveBayes(is_patient ~., data = hcv_train)
+
+#Prediction of the test data
+naive_pred <- predict(naive_model, hcv_test[c(c(1:8), 10)], type = "class")
+
+#Confusion matrix for model evaluation 
+naive_matrix <- confusionMatrix(naive_pred , nb_test$is_patient)
+naive_matrix
+
+# Accuracy, Sensitivity and Specificity
+print("The accuracy of the classification using Naive Bayes model is 94.29%")
+print("The Sensitivity of Naive Bayes model is 0.9722")
+print("The Specificity of Naive Bayes model is 0.8065")
+```
+
+
+**~Result Interpretation~**
+
+Out of 175 samples the Naive bayes classifier has accurately predicted 165 samples, this a good start for the model. The model wrongly predicted a toltal of 10 samples. False negaive is 4 which is very low. Specificity of the model is 80% indicating only 20% the model predictions are wrong.
+
+
+**~Model 2 - Support Vector Machine(SVM)~**
+
+SVM works on the basis of creating hyperplanes by which it classifies the data points. The algorithm can be used both for regression and classification but is widely used for classification. 
+
+```{r}
+set.seed(1000)
+
+# using e1071 libary to build SVM
+smv_model <- svm(is_patient ~., data = hcv_train, type = 'C-classification', kernel = 'linear')
+smv_model
+
+# SVM predictions
+svm_pred <- predict(smv_model, hcv_test[c(c(1:8), 10)])
+
+# Confusion matrix for model evaluation 
+svm_matrix <- confusionMatrix(svm_pred, nb_test$is_patient)
+svm_matrix
+
+# Accuracy, Sensitivity and Specificity
+print("The accuracy of the classification using SVM model is 94.86%")
+print("The Sensitivity of Naive Bayes model is 0.9886")
+print("The Specificity of Naive Bayes model is 0.7742")
+```
+
+
+**~Result Interpretation~**
+
+Out of 175 samples the SVM has accurately predicted 166 samples, which is slightly greater when compared to naive bayes. Only 9 samples were predicted wrong by SVM. False negative is 2,  that is type 2 error a great improvement from naive bayes. Sensitivity of the model is 0.9861 which means only 98% of the Hepatitis-C were correctly predicted by the model.
+
+
+**~Model 3 - Decision tree~**
+
+
+```{r}
+set.seed(1000)
+
+# using rpart library to build decision tree
+dt_model <- rpart(is_patient ~., data = hcv_train, method = "class")
+
+# Decision tree Visualization
+rpart.plot(dt_model)
+
+# prediction of the model
+dt_pred <- predict(dt_model, hcv_test[c(c(1:8), 10)])
+
+# encode the predictions 
+dt_pred_encode <- ifelse(dt_pred > 0.5, 0, 1)
+dt_pred_encode1 <- as.factor(dt_pred_encode)
+
+#select the required predictions
+dt_pred_encode2 <- dt_pred_encode1[c(1:299)]
+
+# confusion matrix
+dt_matrix <- confusionMatrix(dt_pred_encode2, nb_test$is_patient)
+dt_matrix
+
+# Accuracy, Sensitivity and Specificity
+print("The accuracy of the Decision Tress is 92%")
+print("The Sensitivity of Decision Tress is 0.9653")
+print("The Specificity of Decision Tress is 0.7742")
+```
+
+
+**~Result Interpretation~**
+
+The accuracy of the model from decision tree is 92%, which is less compared to naive bayes and svm. Out of 175 samples the decisiom has accurately predicted 161 samples, which is slightly lower when compared to naive bayes and svm. However the model has only 5 false negative is cases, which is a good thing. Sensitivity of the model is 0.9653 which means 96% of the Hepatitis-C were correctly predicted by the model.
+
+
+**~Model 4 - Neural Network (NN)~**
+
+
+```{r}
+set.seed(1000)
+
+# scale the target variable
+hcv_test$is_patient <- as.numeric(hcv_test$is_patient)
+hcv_test2 <- scale(hcv_test$is_patient)
+
+# neural net model using library neural net
+nn_model <- neuralnet(is_patient ~., data = hcv_train)
+
+# visualize the network topology
+plot(nn_model)
+
+# prediction of the model
+nn_pred <- predict(nn_model,hcv_test[c(c(1:8), 10)])
+
+
+# encode the predictions 
+nn_pred_encode <- ifelse(nn_pred > 0.5, 0, 1)
+nn_pred_encode1 <- as.factor(nn_pred_encode)
+
+#select the required predictions
+nn_pred_encode2 <- nn_pred_encode1[c(1:299)]
+
+# confusion matrix
+nn_matrix <- confusionMatrix(nn_pred_encode2, nb_test$is_patient)
+nn_matrix
+
+# Accuracy, Sensitivity and Specificity
+print("The accuracy of the classification using Neural Network is 94.86%")
+print("The Sensitivity of Naive Bayes model is 0.9792")
+print("The Specificity of Naive Bayes model is 0.8065")
+```
+
+**~Result Interpretation~**
+
+The accuracy of NN model is 94.86%, which is similar to SVM. Out of 175 samples the neural model has accurately predicted 166 samples,almost similar to naive bayes and svm. The model has only 3 false negative is cases, which is a good thing. Sensitivity of the model is 0.9753, which is great, means 97% of the Hepatitis-C were correctly predicted by the model.
+
+
+**~Model Evaluation~**
+
+
+```{r}
+# k-fold cross-validation
+set.seed(1000)
+
+# k-fold for naive bayes
+train_control_nb <- trainControl(method = "cv", number = 10)
+
+# train the model 
+model_nb <- suppressWarnings(train(is_patient ~., data = hcv_train, method = "nb", trControl = train_control_nb))
+
+# summarize the result
+print(model_nb)
+
+
+# k-fold for svm
+train_control_svm <- trainControl(method = "cv", number = 10)
+
+# train the model 
+model_svm <- suppressWarnings(train(is_patient ~., data = hcv_train, method = "svmLinear", trControl = train_control_svm))
+
+# summarize the result
+print(model_svm)
+
+# k-fold for Neural Network
+train_control_nn <- trainControl(method = "cv", number = 10)
+
+# train the model 
+model_nn <- suppressWarnings(train(is_patient ~., data = hcv_train, method = "nnet", trControl = train_control_nn))
+
+# summarize the result
+print(model_nn)
+```
+
+**~Result Interpretation~**
+
+The accuracy of Navie bayes for k-fold with k = 10 is 94%. which indicates that the model is good.
+
+
+**~Result Interpretation~**
+
+The accuracy of Support Vector machine for k-fold with k = 10 is 95%, better than Naive bayes. 
+
+
+**~Result Interpretation~**
+
+The average accuracy of Neural Network for k-fold with k = 10 is 95%, similar to SVM.
+
+
+
+```{r}
+# hyperparameters
+set.seed(1000)
+
+# hyperparameters tuning for SVM
+fitcontrol_svm <- trainControl(method = "repeatedcv", number = 3, repeats = 5)
+tic()
+
+# hyperparameter tuning
+svm_model_hyper <- train(is_patient ~ ., data = hcv_train, method = "svmPoly", trControl = fitcontrol_svm, verbose = FALSE)
+toc()
+
+
+# hyperparameters tuning for Neural network
+fitcontrol_nn <- trainControl(method = "repeatedcv", number = 3, repeats = 5)
+tic()
+
+# hyperparameter tuning
+nn_model_hyper <- train(is_patient ~ ., data = hcv_train, method = "nnet", trControl = fitcontrol_nn, verbose = FALSE)
+toc()
+```
+
+
+**~Model comparison and interpretation~**
+
+
+```{r}
+# calculation of precision and recall
+# for Naive bayes
+naive_tabel <- table(naive_pred , nb_test$is_patient)
+nb_prec <- as.data.frame(diag(naive_tabel) / colSums(naive_tabel))[1,]
+nb_recall <- as.data.frame(diag(naive_tabel) / rowSums(naive_tabel))[1,]
+
+# for decision tree
+dtree_table <- table(dt_pred_encode2, hcv_test$is_patient)
+dt_prec = as.data.frame(diag(dtree_table) / colSums(dtree_table))[1,]
+dt_recall = as.data.frame(diag(dtree_table) / rowSums(dtree_table))[1,]
+
+# for SVM
+svm_table <- table(svm_pred, nb_test$is_patient)
+svm_prec = as.data.frame(diag(svm_table) / colSums(svm_table))[1,]
+svm_recall = as.data.frame(diag(svm_table) / rowSums(svm_table))[1,] 
+
+# for neural network
+nn_table <- table(nn_pred_encode2, nb_test$is_patient)
+nn_prec = as.data.frame(diag(nn_table) / colSums(nn_table))[1,]
+nn_recall = as.data.frame(diag(nn_table) / rowSums(nn_table))[1,] 
+
+model_comp_table <- data.frame("Precision" = c(nb_prec, dt_prec, svm_prec, nn_prec), 
+                              "Recall" = c(nb_recall, dt_recall, svm_recall, nn_recall), 
+                              "Accuracy_in_percentage" = c("94.98", "92.31", "94.31", "94.31"),
+                              "Sensitivity" = c("0.9882","0.9606", "0.9921", "0.9882"),
+                              "Specificity" = c("0.7333", "0.7111", "0.6667", "0.6889"))
+
+rownames(model_comp_table) = c("Naive Bayes", "Decision tree", "SVM", "Neural Network")
+model_comp_table
+```
+
+
+**~Result Interpretation~**
+
+We can Interpret from the above table Naive Bayes has the best accuracy for binary classification. And Neural Network and SAV are not far behind. Both have same accuracy but only .067  lesser than Naive Bayes. sensitivity is also higest in naive bayes. we can conclude that Naive Bayes, SVM and Neural network are very powerful models for binary classification. 
+
+
+**~Ensemble~**
+
+
+```{r}
+# Ensemble function which predicts if the patient has liver disease or not
+# create ensemble two models Navie bayes and SVM 
+
+predict_class <- function (pred_class,train,test)
+  {
+  # NaiveBayes model
+  nb_train <- as.data.frame(lapply(hcv_train, factor))
+  nb_test <- as.data.frame(lapply(hcv_test, factor)) 
+  
+  naive_model <- naiveBayes(is_patient ~., data = hcv_train)
+  naive_pred <- predict(naive_model, hcv_test[c(c(1:8), 10)], type = "class")
+  
+  cm1 <- confusionMatrix(naive_pred , nb_test$is_patient)
+  accuracy1 <- as.numeric(cm1$overall['Accuracy'])
+  
+  # SVM model
+  smv_model <- svm(is_patient ~., data = hcv_train, type = 'C-classification', kernel = 'linear')
+  svm_pred <- predict(smv_model, hcv_test[c(c(1:8), 10)])
+ 
+  
+  cm2 <- confusionMatrix(svm_pred, nb_test$is_patient)
+  accuracy2 <- as.numeric(cm2$overall['Accuracy'])
+
+  
+  if (accuracy1 > accuracy2)
+    {
+    result_model <- c("Naive Bayes",predict(naive_model,pred_class), type = "class")
+    return (result_model)
+  }
+  else 
+    {
+    result_model <- c("Support Vector Machine", predict(smv_model, pred_class))
+    return (result_model)
+  }
+}
+
+# create a new dataframe of the data to be predicted
+# data assumption of a 34 year old male has the following clinical data
+# ALB(Albumin) = 44.000, ALP(Alkaline Phosphatase) = 32.00, AST = 16.5, CHE = 7.0, CHOL = 5.89, GGT = 12.8 and finally PROT = 85.67
+new_pred <- data.frame(34, 44.0, 32.0, 16.5, 7.0, 5.89, 12.8, 85.67, 1) 
+names(new_pred) <- c("Age", "ALB", "ALP", "AST", "CHE", "CHOL", "GGT", "PROT", "Sex_m" )
+new_pred
+
+#scale the new data
+new_pred_scaled <- preProcess(hcv_scale, method = c("center", "scale"))
+scaled_new <- predict(new_pred_scaled, newdata = new_pred)
+scaled_new
+
+# call the Ensemble function 
+predict_class(scaled_new, hcv_train, hcv_test)
+```
+
+
+
+**~Result Interpretation~**
+
+
+The Ensemble funtion predicted that a 34 year old male with the following clinical data:
+ALB(Albumin) = 44.000, ALP(Alkaline Phosphatase) = 32.00, AST(Aspartate Aminotransferase) = 16.5, CHE(Serum holinesterase) = 7.0, CHOL(Cholesterol) = 5.89, GGT(Gamma-Glutamyl Transferase) = 12.8 and PROT(Protein) = 85.67 has a liver diseases. We can see that the output of the ensemble is factor '1', indicating liver diseases. With the two models implemented inside ensemble, the ensemble function selected "Naive Bayes"  classification, the reason being that Naive Bayes has the higest accuracy in our project.
+
+
+
+**~THANK YOU~**
+
+```{r}
+y <- cars
+y %>% 
+    mutate(zscore = (dist - mean(dist))/sd(dist))
+
+```
+
+```{r}
+dia <- read.csv("/Users/dushyanthgopichand/Documents/NEU form mac/DA 5030/project/diabetes.csv")
+dia
+reg <- glm(d ~., data = dia)
+reg
+```
